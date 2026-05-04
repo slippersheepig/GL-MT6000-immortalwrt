@@ -14,5 +14,10 @@
 #sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
 
 # Add a feed source
-echo 'src-git helloworld https://github.com/fw876/helloworld' >>feeds.conf.default
+#echo 'src-git helloworld https://github.com/fw876/helloworld' >>feeds.conf.default
 #echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall' >>feeds.conf.default
+
+echo "==> 使用 kenzok8 的 luci-app-adguardhome"
+git clone --depth 1 https://github.com/kenzok8/openwrt-packages tmp-kenzo
+mv tmp-kenzo/luci-app-adguardhome package/
+rm -rf tmp-kenzo
