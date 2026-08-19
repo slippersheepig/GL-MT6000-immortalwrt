@@ -5,9 +5,11 @@
 #
 # HomeProxy's current generator still emits the legacy inbound fields
 # `sniff` and `sniff_override_destination` on mixed/redirect/tproxy/tun
-# inbounds. sing-box has removed these fields. The upstream HomeProxy change
-# proposed on 2026-07-20 removes exactly those fields and leaves the existing
-# route-level sniff action commented.
+# inbounds. sing-box has removed these fields. Simply deleting them lets
+# sing-box start, but traffic may no longer be classified by the sniffed
+# domain, so HomeProxy can appear "running" in LuCI while domain-based proxy
+# rules do not take effect. sing-box >= 1.11 expects sniffing to be expressed
+# as a route action instead.
 #
 # We patch the generator rather than /etc/init.d/homeproxy or generated JSON.
 
@@ -77,6 +79,44 @@ for pattern in patterns:
 after_sniff = len(re.findall(r"^[ \t]*sniff:[ \t]*true,?[ \t]*$", text, re.MULTILINE))
 after_override = len(re.findall(r"^[ \t]*sniff_override_destination:", text, re.MULTILINE))
 
+
+def ensure_route_sniff_rule(config: str) -> tuple[str, str]:
+    """Add sing-box >= 1.11 route-level sniff action if HomeProxy lacks it."""
+    if re.search(r"action:[ \t]*[\"']sniff[\"']", config):
+        return config, "already present"
+
+    # HomeProxy emits the DNS hijack rule as the first route rule. Insert sniff
+    # immediately after it so DNS traffic is still hijacked first, while all
+    # subsequent transparent proxy traffic gets a sniffed domain for rule match.
+    pattern = re.compile(
+        r"(action:[ \t]*[\"']hijack-dns[\"'][^\n]*\n(?P<indent>[ \t]*)},)",
+        re.MULTILINE,
+    )
+
+    def repl(match: re.Match[str]) -> str:
+        indent = match.group("indent")
+        inner = indent + "\t"
+        return (
+            match.group(1)
+            + "\n"
+            + indent + "{\n"
+            + inner + "action: 'sniff',\n"
+            + inner + "timeout: '300ms',\n"
+            + inner + "override_destination: true,\n"
+            + indent + "},"
+        )
+
+    config, count = pattern.subn(repl, config, count=1)
+    if count != 1:
+        raise SystemExit(
+            "ERROR: Could not locate the HomeProxy DNS hijack route rule; "
+            "refusing to patch sniff action blindly"
+        )
+
+    return config, "added"
+
+text, route_sniff_status = ensure_route_sniff_rule(text)
+
 if after_sniff or after_override:
     raise SystemExit(
         "ERROR: HomeProxy generator still contains legacy inbound sniff fields "
@@ -92,7 +132,8 @@ else:
 print(
     "==> HomeProxy legacy sniff migration: "
     + changed
-    + f" (sniff removed={before_sniff}, sniff_override_destination removed={before_override})"
+    + f" (sniff removed={before_sniff}, sniff_override_destination removed={before_override}, "
+    + f"route sniff={route_sniff_status})"
 )
 print(f"==> Generator: {path}")
 PY
