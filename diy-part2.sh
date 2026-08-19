@@ -58,12 +58,11 @@ update_sing_box_from_openwrt() {
 # The compatibility layer patches the generator, not /etc/init.d/homeproxy, so the
 # generated config itself is valid and the workaround is preserved across restarts.
 patch_homeproxy_sing_box_compat() {
-  local patch_script=""
-  if [ -n "${GITHUB_WORKSPACE:-}" ] && [ -f "${GITHUB_WORKSPACE}/patches/homeproxy-singbox-compat.sh" ]; then
-    patch_script="${GITHUB_WORKSPACE}/patches/homeproxy-singbox-compat.sh"
-  else
-    patch_script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/patches/homeproxy-singbox-compat.sh"
-  fi
+  # The workflow executes diy-part2.sh after `cd openwrt`, so $(pwd) is the
+  # OpenWrt source tree, not the GitHub repository root. Prefer the workspace
+  # path supplied by GitHub Actions, and fall back to the script directory.
+  local repo_root="${GITHUB_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+  local patch_script="${repo_root}/patches/homeproxy-singbox-compat.sh"
 
   if [ ! -f "${patch_script}" ]; then
     echo "==> ERROR: missing ${patch_script}"
@@ -71,7 +70,7 @@ patch_homeproxy_sing_box_compat() {
   fi
 
   chmod +x "${patch_script}"
-  "${patch_script}"
+  OPENWRT_ROOT="$(pwd)" "${patch_script}"
 }
 
 update_sing_box_from_openwrt
