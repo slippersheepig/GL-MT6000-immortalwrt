@@ -58,7 +58,12 @@ update_sing_box_from_openwrt() {
 # The compatibility layer patches the generator, not /etc/init.d/homeproxy, so the
 # generated config itself is valid and the workaround is preserved across restarts.
 patch_homeproxy_sing_box_compat() {
-  local patch_script="$(pwd)/patches/homeproxy-singbox-compat.sh"
+  local patch_script=""
+  if [ -n "${GITHUB_WORKSPACE:-}" ] && [ -f "${GITHUB_WORKSPACE}/patches/homeproxy-singbox-compat.sh" ]; then
+    patch_script="${GITHUB_WORKSPACE}/patches/homeproxy-singbox-compat.sh"
+  else
+    patch_script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/patches/homeproxy-singbox-compat.sh"
+  fi
 
   if [ ! -f "${patch_script}" ]; then
     echo "==> ERROR: missing ${patch_script}"
