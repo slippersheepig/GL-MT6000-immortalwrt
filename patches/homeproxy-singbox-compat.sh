@@ -3,13 +3,20 @@
 #
 # Current target: sing-box >= 1.12 / 1.13.
 #
-# HomeProxy's current generator still emits the legacy inbound fields
-# `sniff` and `sniff_override_destination` on mixed/redirect/tproxy/tun
-# inbounds. sing-box has removed these fields. Simply deleting them lets
-# sing-box start, but traffic may no longer be classified by the sniffed
-# domain, so HomeProxy can appear "running" in LuCI while domain-based proxy
-# rules do not take effect. sing-box >= 1.11 expects sniffing to be expressed
-# as a route action instead.
+# HomeProxy's current generator can still emit configuration that is accepted
+# by LuCI/procd but no longer behaves correctly with newer sing-box releases:
+#
+# * sing-box >= 1.13 removed legacy inbound fields (`sniff` and
+#   `sniff_override_destination`) on mixed/redirect/tproxy/tun inbounds. Simply
+#   deleting them lets sing-box start, but traffic may no longer be classified
+#   by the sniffed domain, so HomeProxy can appear "running" in LuCI while
+#   domain-based proxy rules do not take effect. sing-box >= 1.11 expects
+#   sniffing to be expressed as a route action instead.
+# * sing-box >= 1.12 DNS servers use dial fields directly. Detouring direct DNS
+#   servers to HomeProxy's empty `direct-out` outbound can leave DNS/direct
+#   traffic unmarked or fail on current sing-box with "detour to an empty direct
+#   outbound makes no sense". Use the DNS server's own `routing_mark` dial field
+#   so router-originated direct DNS traffic still bypasses transparent capture.
 #
 # We patch the generator rather than /etc/init.d/homeproxy or generated JSON.
 
@@ -117,6 +124,11 @@ def ensure_route_sniff_rule(config: str) -> tuple[str, str]:
 
 text, route_sniff_status = ensure_route_sniff_rule(text)
 
+dns_mark_pattern = re.compile(
+    r"detour:[ \t]*self_mark[ \t]*\?[ \t]*[\"']direct-out[\"'][ \t]*:[ \t]*null"
+)
+text, dns_mark_count = dns_mark_pattern.subn("routing_mark: strToInt(self_mark)", text)
+
 if after_sniff or after_override:
     raise SystemExit(
         "ERROR: HomeProxy generator still contains legacy inbound sniff fields "
@@ -133,7 +145,7 @@ print(
     "==> HomeProxy legacy sniff migration: "
     + changed
     + f" (sniff removed={before_sniff}, sniff_override_destination removed={before_override}, "
-    + f"route sniff={route_sniff_status})"
+    + f"route sniff={route_sniff_status}, dns direct marks migrated={dns_mark_count})"
 )
 print(f"==> Generator: {path}")
 PY
