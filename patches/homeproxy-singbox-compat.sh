@@ -11,7 +11,10 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OPENWRT_ROOT="${OPENWRT_ROOT:-$(pwd)}"
+# The patch script lives in the GitHub workspace while the feed tree lives in /workdir/openwrt.
+ROOT_DIR="${OPENWRT_ROOT}"
 
 find_homeproxy_generator() {
     local candidates=(
@@ -133,6 +136,8 @@ for label, old, new in [
 
 if re.search(r'^\s*sniff_override_destination:', text, re.M):
     fail("legacy sniff_override_destination remains in generate_client.uc")
+if re.search(r'^\s*sniff:\s*true,?\s*$', text, re.M):
+    fail("legacy inbound sniff field remains in generate_client.uc")
 
 # Add the new sniff route action once, using the same proxy_mode logic as the
 # inbound creation. This preserves mixed/redirect/tproxy/tun coverage.
@@ -181,13 +186,11 @@ if old_route_rules in text:
 # Remove legacy block outbound. HomeProxy's migrate_config already converts
 # routing rules using block-out to action=reject, so keeping block-out here is
 # unnecessary and incompatible with sing-box >= 1.13.
-old_block = """\t{
-\t\ttype: 'block',
-\t\ttag: 'block-out'
-\t}
-"""
+old_block = """\t{\n\t\ttype: 'block',\n\t\ttag: 'block-out'\n\t},\n"""
 if old_block in text:
     replace_once(old_block, "", "legacy block outbound")
+elif "type: 'block'" in text and "tag: 'block-out'" in text:
+    fail("legacy block outbound found but surrounding syntax changed; refusing an unsafe patch")
 
 # 1.11 migration: direct outbound destination override fields.
 old_override = """\t\t/* Direct */
