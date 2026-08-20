@@ -92,11 +92,17 @@ def ensure_route_sniff_rule(config: str) -> tuple[str, str]:
     if re.search(r"action:[ \t]*[\"']sniff[\"']", config):
         return config, "already present"
 
-    # HomeProxy emits the DNS hijack rule as the first route rule. Insert sniff
-    # immediately after it so DNS traffic is still hijacked first, while all
-    # subsequent transparent proxy traffic gets a sniffed domain for rule match.
+    # Current HomeProxy forks place route-level sniff as the first route rule.
+    # Keep that ordering so the sniff action can annotate traffic before later
+    # domain/ruleset matching and before the DNS hijack rule short-circuits DNS
+    # inbound traffic.
     pattern = re.compile(
-        r"(action:[ \t]*[\"']hijack-dns[\"'][^\n]*\n(?P<indent>[ \t]*)},)",
+        r"^(?P<indent>[ \t]*)\{[ \t]*\n"
+        r"(?:(?!^[ \t]*\},?).*\n)*?"
+        r"^[ \t]*inbound:[ \t]*[\"']dns-in[\"'][^\n]*\n"
+        r"(?:(?!^[ \t]*\},?).*\n)*?"
+        r"^[ \t]*action:[ \t]*[\"']hijack-dns[\"'][^\n]*\n"
+        r"(?P=indent)\},",
         re.MULTILINE,
     )
 
@@ -104,13 +110,11 @@ def ensure_route_sniff_rule(config: str) -> tuple[str, str]:
         indent = match.group("indent")
         inner = indent + "\t"
         return (
-            match.group(1)
-            + "\n"
-            + indent + "{\n"
+            indent + "{\n"
             + inner + "action: 'sniff',\n"
-            + inner + "timeout: '300ms',\n"
-            + inner + "override_destination: true,\n"
             + indent + "},"
+            + "\n"
+            + match.group(0)
         )
 
     config, count = pattern.subn(repl, config, count=1)
