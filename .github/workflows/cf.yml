@@ -59,7 +59,7 @@ jobs:
     - name: SSH connection to Actions
       uses: owenthereal/action-upterm@v1
       with:
-        limit-access-to-actor: true
+        limit-access-to-actor: false
       timeout-minutes: 30
     - name: 组织配置文件
       run: |
