@@ -57,12 +57,9 @@ jobs:
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
     - name: SSH connection to Actions
-      uses: mxschmitt/action-tmate@v3
+      uses: owenthereal/action-upterm@v1
       with:
-        tmate-server-host: ${{ secrets.TMATE_SERVER_HOST }}
-        tmate-server-port: ${{ secrets.TMATE_SERVER_PORT }}
-        tmate-server-rsa-fingerprint: ${{ secrets.TMATE_SERVER_RSA_FINGERPRINT }}
-        tmate-server-ed25519-fingerprint: ${{ secrets.TMATE_SERVER_ED25519_FINGERPRINT }}
+        limit-access-to-actor: true
       timeout-minutes: 30
     - name: 组织配置文件
       run: |
