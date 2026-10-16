@@ -9,6 +9,7 @@
 # This is free software, licensed under the MIT License.
 # See /LICENSE for more information.
 #
+rm -f feeds/packages/net/miniupnpd/patches/020-descr-filter-fix.patch
 
 # Modify default IP
 sed -i 's/192.168.1.1/192.168.31.1/g' package/base-files/files/bin/config_generate
